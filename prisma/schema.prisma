@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  UNBOOKED
+  BOOKING_IN_PROGRESS
+  BOOKED
+  FAILED
+}
+
+model Order {
+  id               String      @id @default(auto()) @map("_id") @db.ObjectId
+  productName      String
+  price            Float
+  quantity         Int         @default(1)
+  notes            String?
+  imageUrl         String
+  customerName     String
+  customerPhone    String
+  customerAddress  String
+  city             String
+  status           OrderStatus @default(UNBOOKED)
+  trackingNumber   String?
+  courierReference String?
+  errorMessage     String?
+  bookedAt         DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
