@@ -11,11 +11,31 @@ export const pakistaniPhoneSchema = z
       .regex(/^03\d{9}$/, { message: "Phone must be 11 digits in Pakistani format (03XXXXXXXXX)" })
   );
 
-// City validation: must be one of the approved cities in lib/cities.ts
+// Canonicalize city case-insensitively against official CITY_VALUES
+export function canonicalizeCity(inputCity: string | null | undefined): string | null {
+  if (!inputCity) return null;
+  const trimmed = inputCity.trim().toLowerCase();
+  if (!trimmed) return null;
+  const found = (CITY_VALUES as readonly string[]).find(
+    (c) => c.toLowerCase() === trimmed
+  );
+  return found ?? null;
+}
+
+// City validation: case-insensitive check canonicalized to the official spelling
 export const cityValidationSchema = z
   .string({ message: "City is required" })
-  .refine((val) => (CITY_VALUES as readonly string[]).includes(val), {
-    message: "City must be selected from the operational cities list",
+  .trim()
+  .transform((val, ctx) => {
+    const canonical = canonicalizeCity(val);
+    if (!canonical) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Please choose a city from the list",
+      });
+      return z.NEVER;
+    }
+    return canonical;
   });
 
 // Schema for creating an order

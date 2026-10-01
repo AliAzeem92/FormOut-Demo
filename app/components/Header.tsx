@@ -22,10 +22,15 @@ export function Header({ isMockCourier, onOpenCreateModal }: HeaderProps) {
               <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 truncate">
                 ShipLink
               </h1>
-              {isMockCourier && (
+              {isMockCourier ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                   Sandbox mode
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live mode
                 </span>
               )}
             </div>

@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "prisma:push": "node --env-file=.env.local ./node_modules/prisma/build/index.js db push",
-    "prisma:generate": "node --env-file=.env.local ./node_modules/prisma/build/index.js generate"
+    "prisma:generate": "node --env-file=.env.local ./node_modules/prisma/build/index.js generate",
+    "postex:check": "node --env-file=.env.local scripts/postex-check.mjs",
+    "sync:cities": "node --env-file=.env.local scripts/sync-cities.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

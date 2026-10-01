@@ -83,12 +83,14 @@ Create a `.env.local` file in the project root containing the following environm
 - `CLOUDINARY_CLOUD_NAME`: Cloud name from Cloudinary Console Dashboard.
 - `CLOUDINARY_API_KEY`: API Key from Cloudinary Console (**Settings > Access Keys**).
 - `CLOUDINARY_API_SECRET`: API Secret from Cloudinary Console (**Settings > Access Keys**).
-- `MOCK_COURIER`: Set to `"true"` to enable simulated courier mode for demo/testing without calling live APIs.
-- `POSTEX_API_TOKEN`: Merchant API token provided by PostEx (can be left empty when `MOCK_COURIER="true"`).
+- `MOCK_COURIER`: Set to `"true"` to enable simulated courier mode with MOCK- tracking numbers. Set to `"false"` to enable real live PostEx dispatch.
+- `POSTEX_API_TOKEN`: Merchant API token provided by PostEx (required when `MOCK_COURIER="false"`).
+- `POSTEX_PICKUP_ADDRESS_CODE`: (Optional) Merchant pickup warehouse code (obtained via `npm run postex:check`). If omitted, PostEx uses the default registered merchant warehouse.
 
 > **Important Setup Notes:**
 > - **MongoDB Atlas:** Ensure your IP address is whitelisted in Atlas (**Network Access** -> Add IP Address / Allow access from anywhere `0.0.0.0/0` for demo purposes).
 > - **Cloudinary API Keys:** In the Cloudinary Console (**Settings > Access Keys**), make sure the API key used has the **Media Management (Upload)** role assigned, or use the account's Master API key.
+> - **PostEx Operational Cities Casing:** The official PostEx v4.1.9 guide specifies `operationalCityType=Delivery`, but PostEx's live Java Spring Boot backend defines the enum in lowercase (`delivery`). Querying `Delivery` returns HTTP 400 (`No enum constant com.postex.enums.OperationalCityTypeOptions.Delivery`), while `delivery` returns all 900 delivery cities (verified on 2026-10-01). The sync script handles this automatically.
 
 ### 3. Push Schema to Database
 ```bash
@@ -111,6 +113,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - `npm run lint`: Runs ESLint 9 across all project files.
 - `npm run prisma:push`: Pushes schema definitions directly to MongoDB Atlas.
 - `npm run prisma:generate`: Re-generates the local Prisma Client types.
+- `npm run postex:check`: Verifies PostEx credentials and queries operational delivery cities count and registered pickup addresses without revealing tokens or phone numbers.
+- `npm run sync:cities`: Fetches operational delivery cities for Pakistan from PostEx, deduplicates case-insensitively, and regenerates `lib/cities.ts` (900 cities).
 
 ---
 
@@ -129,20 +133,21 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Mock Mode vs. Real Mode
 
-### How Mock Mode Works (`MOCK_COURIER="true"`)
-- The app displays an amber **"Sandbox mode"** badge in the header.
-- When an order is dispatched:
-  - No outbound network call is made to PostEx.
-  - A realistic ~1.5 second network delay is simulated.
-  - A mock tracking number prefixed with `MOCK-` (e.g., `MOCK-75569301`) and a courier reference (`PX-...`) are generated.
+### Switching Between Modes
+- Set `MOCK_COURIER="true"` in `.env.local` to run in simulated mode (displays amber **"Sandbox mode"** badge).
+- Set `MOCK_COURIER="false"` in `.env.local` and configure `POSTEX_API_TOKEN` to run with the live PostEx API (displays green **"Live mode"** badge).
+
+### Mock Mode Details (`MOCK_COURIER="true"`)
+- Simulates realistic ~1.5s courier latency.
+- Generates `MOCK-` tracking numbers (e.g. `MOCK-75569301`) and courier references (`PX-...`).
 - **Triggering Failure for Demos:** Add `[fail]` anywhere in the order's **Order Notes** field. The mock courier will intentionally reject the booking with an error message, allowing you to demonstrate the `FAILED` status and the **Retry** workflow.
 
-### Transitioning to Real PostEx Integration
-To connect real PostEx merchant accounts in the future:
-1. Provide verified official PostEx API documentation (staging/production endpoints, authentication header name, pickup code format).
-2. Set `MOCK_COURIER="false"` and add your merchant token to `POSTEX_API_TOKEN` in `.env.local`.
-3. In `lib/postex.ts`, replace the safe stub in the `REAL PATH` section with the official HTTP request payload.
-4. Replace the temporary city list in `lib/cities.ts` with PostEx's official operational city codes.
+### Real PostEx Integration (`MOCK_COURIER="false"`)
+- Dispatches live bookings to PostEx Merchant API `POST https://api.postex.pk/services/integration/api/order/v3/create-order`.
+- Authenticates using the `token: <POSTEX_API_TOKEN>` header.
+- Enforces an internal 12-second `AbortController` timeout guard (shorter than the route's 15-second atomic lock guard).
+- Successfully books orders with status `BOOKED` and stores the official tracking number (`CX-...`).
+- Canonicalizes city names case-insensitively against official operational delivery cities before dispatching. If an order specifies a city not serviced by PostEx, the dispatch fails before making any outbound network call with a clear notification: *"City '<city>' is not in the PostEx city list. Create a new order with a valid city."*
 
 ---
 
@@ -191,7 +196,8 @@ To connect real PostEx merchant accounts in the future:
 
 - **Single Seller:** Configured for one merchant; credentials reside in server environment variables.
 - **No Authentication:** Single-tenant demo without user login screens.
-- **Temporary City List:** [lib/cities.ts](lib/cities.ts) contains major Pakistani cities; official PostEx operational destination codes should replace it in production.
+- **Operational City List:** [lib/cities.ts](lib/cities.ts) is synchronized directly from PostEx's operational delivery cities via `npm run sync:cities` (900 active delivery cities).
+- **PostEx State Post-Creation:** After order creation, PostEx reports the order as `"UnBooked"`. Generating load sheets, downloading airway bills, and booking courier pickup arrangements are out of scope for this demo and are not built.
 - **No Automated Webhook Sync:** Tracking statuses (In Transit, Delivered, Returned) do not auto-sync without courier webhook listeners.
 - **No Order Editing:** Orders cannot be edited once placed (must be created fresh).
 

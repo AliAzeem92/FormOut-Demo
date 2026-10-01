@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, UploadCloud, Loader2, AlertCircle } from "lucide-react";
 import { CITIES } from "@/lib/cities";
-import { createOrderSchema } from "@/lib/validations";
+import { canonicalizeCity, createOrderSchema } from "@/lib/validations";
 import { Order } from "../types";
 
 interface CreateOrderModalProps {
@@ -33,7 +33,7 @@ export function CreateOrderModal({
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
-  const [city, setCity] = useState(CITIES[0].value);
+  const [cityInput, setCityInput] = useState("");
 
   // File state & preview
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -132,7 +132,7 @@ export function CreateOrderModal({
     setCustomerName("");
     setCustomerPhone("");
     setCustomerAddress("");
-    setCity(CITIES[0].value);
+    setCityInput("");
     handleRemoveImage();
     setFieldErrors({});
     setGeneralError(null);
@@ -165,7 +165,7 @@ export function CreateOrderModal({
       customerName,
       customerPhone,
       customerAddress,
-      city,
+      city: cityInput,
     });
 
     if (!clientValidation.success) {
@@ -200,7 +200,7 @@ export function CreateOrderModal({
 
       const uploadedWebpUrl = uploadData.url;
 
-      // 4. Save Order to /api/orders
+      // 4. Save Order to /api/orders (submitting canonical official city name)
       const orderPayload = {
         productName: productName.trim(),
         price: Number(price),
@@ -210,7 +210,7 @@ export function CreateOrderModal({
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         customerAddress: customerAddress.trim(),
-        city,
+        city: clientValidation.data.city,
       };
 
       const orderResponse = await fetch("/api/orders", {
@@ -536,25 +536,43 @@ export function CreateOrderModal({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label htmlFor="city-input" className="block text-xs font-medium text-slate-700 mb-1">
                   City <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                <input
+                  id="city-input"
+                  type="text"
+                  list="postex-cities-list"
+                  value={cityInput}
+                  onChange={(e) => {
+                    setCityInput(e.target.value);
+                    if (fieldErrors.city) {
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.city;
+                        return next;
+                      });
+                    }
+                  }}
+                  onBlur={() => {
+                    const canonical = canonicalizeCity(cityInput);
+                    if (canonical) {
+                      setCityInput(canonical);
+                    }
+                  }}
+                  placeholder="Type city name (e.g. Lahore, Karachi)"
                   disabled={isSubmitting}
-                  className={`w-full min-h-[44px] text-sm px-3.5 py-2.5 rounded-xl border bg-white text-slate-900 transition-colors focus:outline-none focus:ring-2 cursor-pointer ${
+                  className={`w-full min-h-[44px] text-sm px-3.5 py-2.5 rounded-xl border bg-white text-slate-900 transition-colors focus:outline-none focus:ring-2 ${
                     fieldErrors.city
                       ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500"
                       : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"
                   }`}
-                >
+                />
+                <datalist id="postex-cities-list">
                   {CITIES.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
+                    <option key={c.value} value={c.value} />
                   ))}
-                </select>
+                </datalist>
                 {fieldErrors.city && (
                   <p className="text-xs text-rose-600 mt-1">{fieldErrors.city}</p>
                 )}
